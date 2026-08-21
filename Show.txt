@@ -1,0 +1,1424 @@
+#include <windows.h>
+#include <GL/glut.h>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+int mode = 1;
+int signal = 0;
+int timerValue = 35;
+int yellowTime = 12;
+
+float speedValue = 0.35;
+bool doubleSpeed = false;
+
+float carNS1 = 98;
+float carNS2 = 140;
+
+float carSN1 = -120;
+float carSN2 = -150;
+
+float carEW1 = -120;
+float carEW2 = -150;
+
+float carWE1 = 98;
+float carWE2 = 130;
+
+float safeDistance = 35;
+float junctionStart = 35;
+
+float rainX[150];
+float rainY[150];
+
+float snowX[150];
+float snowY[150];
+void weatherEffect();
+
+void rect(float x1, float y1, float x2, float y2,
+          float r, float g, float b)
+{
+    glColor3f(r, g, b);
+
+    glBegin(GL_QUADS);
+
+    glVertex2f(x1, y1);
+    glVertex2f(x2, y1);
+    glVertex2f(x2, y2);
+    glVertex2f(x1, y2);
+
+    glEnd();
+}
+
+void circle(float x, float y, float radius,
+            float red, float green, float blue)
+{
+    glColor3f(red, green, blue);
+
+    glBegin(GL_POLYGON);
+
+    for (int i = 0; i < 100; i++)
+    {
+        float angle = 2 * 3.1416 * i / 100;
+
+        glVertex2f(
+            x + radius * cos(angle),
+            y + radius * sin(angle)
+        );
+    }
+
+    glEnd();
+}
+
+void text(float x, float y, const char str[],
+          float r, float g, float b)
+{
+    glColor3f(r, g, b);
+    glRasterPos2f(x, y);
+
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        glutBitmapCharacter(
+            GLUT_BITMAP_HELVETICA_18,
+            str[i]
+        );
+    }
+}
+
+void road()
+{
+
+    rect(-100, 35, 100, -35, 0.06, 0.06, 0.07);
+    rect(-35, 100, 35, -100, 0.06, 0.06, 0.07);
+
+    rect(-100, 40, 100, 35, 0.55, 0.55, 0.55);
+    rect(-100, -35, 100, -40, 0.55, 0.55, 0.55);
+
+    rect(-40, 100, -35, -100, 0.55, 0.55, 0.55);
+    rect(35, 100, 40, -100, 0.55, 0.55, 0.55);
+
+    rect(-3, 100, 3, 52, 1, 0.8, 0);
+    rect(-3, -52, 3, -100, 1, 0.8, 0);
+
+    rect(-100, -3, -52, 3, 1, 0.8, 0);
+    rect(52, -3, 100, 3, 1, 0.8, 0);
+
+    for (float y = 58; y <= 90; y += 16)
+    {
+        rect(-28, y, -22, y + 8, 1, 1, 1);
+        rect(22, y, 28, y + 8, 1, 1, 1);
+    }
+
+    for (float y = -98; y <= -58; y += 16)
+    {
+        rect(-28, y, -22, y + 8, 1, 1, 1);
+        rect(22, y, 28, y + 8, 1, 1, 1);
+    }
+
+    for (float x = -98; x <= -58; x += 16)
+    {
+        rect(x, -28, x + 8, -22, 1, 1, 1);
+        rect(x, 22, x + 8, 28, 1, 1, 1);
+    }
+
+    for (float x = 58; x <= 90; x += 16)
+    {
+        rect(x, -28, x + 8, -22, 1, 1, 1);
+        rect(x, 22, x + 8, 28, 1, 1, 1);
+    }
+
+    for (int i = 0; i < 10; i++)
+    {
+        float position = -30 + i * 6;
+
+        rect(
+            position,
+            40,
+            position + 3.2,
+            50,
+            1,
+            1,
+            1
+        );
+
+        rect(
+            position,
+            -50,
+            position + 3.2,
+            -40,
+            1,
+            1,
+            1
+        );
+
+        rect(
+            40,
+            position,
+            50,
+            position + 3.2,
+            1,
+            1,
+            1
+        );
+
+        rect(
+            -50,
+            position,
+            -40,
+            position + 3.2,
+            1,
+            1,
+            1
+        );
+    }
+}
+
+void sidewalk()
+{
+    rect(-100, 100, -40, 40, 0.35, 0.35, 0.35);
+    rect(40, 100, 100, 40, 0.35, 0.35, 0.35);
+
+    rect(-100, -40, -40, -100, 0.35, 0.35, 0.35);
+    rect(40, -40, 100, -100, 0.35, 0.35, 0.35);
+}
+
+void trafficPole(float x, float y, int active)
+{
+
+    int side = (x < 0) ? 1 : -1;
+
+    float lightX = x + side * 14;
+    float timerX = x + side * 5;
+
+    float armLeft;
+    float armRight;
+
+    if (side == 1)
+    {
+        armLeft = x;
+        armRight = lightX;
+    }
+    else
+    {
+        armLeft = lightX;
+        armRight = x;
+    }
+
+    rect(
+        x - 1.7,
+        y - 8,
+        x + 1.7,
+        y + 29,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    rect(
+        x - 1.1,
+        y - 7,
+        x + 1.1,
+        y + 28,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    rect(
+        x - 0.35,
+        y - 6,
+        x + 0.15,
+        y + 27,
+        0.65,
+        0.72,
+        0.76
+    );
+
+    rect(
+        x - 4.5,
+        y - 10,
+        x + 4.5,
+        y - 7,
+        0.04,
+        0.06,
+        0.08
+    );
+
+    rect(
+        x - 3.6,
+        y - 9.2,
+        x + 3.6,
+        y - 7,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    rect(
+        armLeft,
+        y + 26,
+        armRight,
+        y + 29,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    rect(
+        armLeft,
+        y + 26.6,
+        armRight,
+        y + 28.4,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    rect(
+        armLeft + 0.8,
+        y + 27.6,
+        armRight - 0.8,
+        y + 28.1,
+        0.65,
+        0.72,
+        0.76
+    );
+
+    rect(
+        lightX - 4.8,
+        y + 9,
+        lightX + 4.8,
+        y + 32,
+        0.03,
+        0.04,
+        0.05
+    );
+
+    rect(
+        lightX - 4,
+        y + 10,
+        lightX + 4,
+        y + 31,
+        0.09,
+        0.11,
+        0.12
+    );
+
+    circle(
+        lightX,
+        y + 27,
+        2.7,
+        active == 0 ? 1.0 : 0.18,
+        0,
+        0
+    );
+
+    circle(
+        lightX,
+        y + 20.5,
+        2.7,
+        active == 1 ? 1.0 : 0.18,
+        active == 1 ? 0.78 : 0.08,
+        0
+    );
+
+    circle(
+        lightX,
+        y + 14,
+        2.7,
+        0,
+        active == 2 ? 1.0 : 0.18,
+        0
+    );
+
+    rect(
+        timerX - 0.9,
+        y + 14,
+        timerX + 0.9,
+        y + 27,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    rect(
+        timerX - 0.45,
+        y + 14,
+        timerX + 0.45,
+        y + 27,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    rect(
+        timerX - 5.5,
+        y + 4,
+        timerX + 5.5,
+        y + 14,
+        0.04,
+        0.05,
+        0.06
+    );
+
+    rect(
+        timerX - 4.8,
+        y + 4.7,
+        timerX + 4.8,
+        y + 13.3,
+        0.25,
+        0.31,
+        0.35
+    );
+
+    rect(
+        timerX - 4.1,
+        y + 5.4,
+        timerX + 4.1,
+        y + 12.6,
+        0.015,
+        0.015,
+        0.02
+    );
+
+    char timerText[10];
+
+    sprintf(timerText, "%02d", timerValue);
+
+    text(
+        timerX - 3.7,
+        y + 6.7,
+        timerText,
+        1.0,
+        0.12,
+        0.05
+    );
+}
+
+void trafficSystem()
+{
+    if (signal == 0)
+    {
+
+        trafficPole(-56, 50, 2);
+        trafficPole(-56, -50, 0);
+
+        trafficPole(56, -50, 2);
+        trafficPole(56, 50, 0);
+    }
+
+    else if (signal == 1)
+    {
+        trafficPole(-56, 50, 1);
+        trafficPole(-56, -50, 0);
+
+        trafficPole(56, -50, 1);
+        trafficPole(56, 50, 0);
+    }
+
+    else if (signal == 2)
+    {
+        trafficPole(-56, 50, 0);
+        trafficPole(-56, -50, 2);
+
+        trafficPole(56, -50, 0);
+        trafficPole(56, 50, 2);
+    }
+
+    else if (signal == 3)
+    {
+        trafficPole(-56, 50, 0);
+        trafficPole(-56, -50, 1);
+
+        trafficPole(56, -50, 0);
+        trafficPole(56, 50, 1);
+    }
+}
+
+void centeredText(float centerX, float y,
+                  const char str[],
+                  float r, float g, float b)
+{
+    int pixelWidth = 0;
+
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        pixelWidth += glutBitmapWidth(
+            GLUT_BITMAP_HELVETICA_18,
+            str[i]
+        );
+    }
+
+    float windowWidth = glutGet(GLUT_WINDOW_WIDTH);
+    float worldWidth = pixelWidth * 200.0f / windowWidth;
+
+    text(
+        centerX - worldWidth / 2.0f,
+        y,
+        str,
+        r, g, b
+    );
+}
+
+void messageBoard(float x,float y)
+{
+    rect(
+        x+1.2,
+        y-1.2,
+        x+36.2,
+        y+18.8,
+        0.03,
+        0.04,
+        0.05
+    );
+
+    rect(
+        x,
+        y,
+        x+35,
+        y+20,
+        0.10,
+        0.16,
+        0.20
+    );
+
+    rect(
+        x+1,
+        y+18.5,
+        x+34,
+        y+19.5,
+        0.42,
+        0.52,
+        0.57
+    );
+
+    rect(
+        x+1.5,
+        y+1.5,
+        x+33.5,
+        y+18.5,
+        0.28,
+        0.36,
+        0.40
+    );
+
+    rect(
+        x+3,
+        y+3,
+        x+32,
+        y+17,
+        0.03,
+        0.28,
+        0.12
+    );
+
+    circle(
+        x+5,
+        y+5,
+        1.2,
+        0.20,
+        1.0,
+        0.35
+    );
+
+    circle(
+        x+30,
+        y+5,
+        1.2,
+        0.20,
+        1.0,
+        0.35
+    );
+
+    text(
+        x+9,
+        y+9,
+        "A Good Day",
+        1.0,
+        0.90,
+        0.25
+    );
+
+    rect(
+        x+8,
+        y-12,
+        x+11,
+        y,
+        0.35,
+        0.20,
+        0.08
+    );
+
+    rect(
+        x+24,
+        y-12,
+        x+27,
+        y,
+        0.35,
+        0.20,
+        0.08
+    );
+}
+
+void boards()
+{
+    messageBoard(-98, 70);
+    messageBoard(63, 70);
+
+    messageBoard(-98, -85);
+    messageBoard(63, -85);
+}
+
+void tree(float x, float y)
+{
+
+    circle(
+        x,
+        y,
+        5,
+        0.22,
+        0.22,
+        0.22
+    );
+
+    rect(
+        x - 2,
+        y,
+        x + 2,
+        y + 13,
+        0.38,
+        0.20,
+        0.07
+    );
+
+    circle(
+        x,
+        y + 18,
+        7,
+        0.04,
+        0.42,
+        0.08
+    );
+
+    circle(
+        x - 5,
+        y + 15,
+        5.5,
+        0.06,
+        0.55,
+        0.10
+    );
+
+    circle(
+        x + 5,
+        y + 15,
+        5.5,
+        0.06,
+        0.55,
+        0.10
+    );
+
+    circle(
+        x,
+        y + 22,
+        5,
+        0.08,
+        0.62,
+        0.12
+    );
+}
+
+void environment()
+{
+
+    tree(-50, -96);
+}
+
+void carModel(float x, float y,
+              float r, float g, float b,
+              int direction)
+{
+    float centerX;
+    float centerY;
+    float angle;
+
+    if (direction == 0 || direction == 1)
+    {
+        centerX = x + 5;
+        centerY = y + 11;
+    }
+    else
+    {
+        centerX = x + 11;
+        centerY = y + 5;
+    }
+
+    if (direction == 0)
+        angle = 180;
+    else if (direction == 1)
+        angle = 0;
+    else if (direction == 2)
+        angle = -90;
+    else
+        angle = 90;
+
+    glPushMatrix();
+
+    glTranslatef(centerX, centerY, 0);
+    glRotatef(angle, 0, 0, 1);
+
+    rect(
+        -4, -9,
+         4,  9,
+         r, g, b
+    );
+
+    rect(
+        -3, 2,
+         3, 6,
+         0.2, 0.4, 0.5
+    );
+
+    rect(
+        -3, -6,
+         3, -2,
+         0.2, 0.4, 0.5
+    );
+
+    rect(
+        -5, 4,
+        -4, 7,
+        0, 0, 0
+    );
+
+    rect(
+        -5, -7,
+        -4, -4,
+        0, 0, 0
+    );
+
+    rect(
+        4, 4,
+        5, 7,
+        0, 0, 0
+    );
+
+    rect(
+        4, -7,
+        5, -4,
+        0, 0, 0
+    );
+
+    rect(
+        -3, 8,
+        -1, 9,
+        1, 1, 0
+    );
+
+    rect(
+        1, 8,
+        3, 9,
+        1, 1, 0
+    );
+
+    rect(
+        -3, -9,
+        -1, -8,
+        1, 0, 0
+    );
+
+    rect(
+        1, -9,
+        3, -8,
+        1, 0, 0
+    );
+
+    glPopMatrix();
+}
+
+bool checkVerticalCollision(float front, float back)
+{
+    if (fabs(front - back) < safeDistance)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+bool checkHorizontalCollision(float front, float back)
+{
+    if (fabs(front - back) < safeDistance)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void moveNegativeCar(float &position,
+                     float stopPosition,
+                     bool greenSignal)
+{
+
+    if (greenSignal || position < stopPosition)
+    {
+        position -= speedValue;
+    }
+    else if (position > stopPosition)
+    {
+
+        position -= speedValue;
+
+        if (position < stopPosition)
+        {
+            position = stopPosition;
+        }
+    }
+}
+
+void movePositiveCar(float &position,
+                     float stopPosition,
+                     bool greenSignal)
+{
+
+    if (greenSignal || position > stopPosition)
+    {
+        position += speedValue;
+    }
+    else if (position < stopPosition)
+    {
+
+        position += speedValue;
+
+        if (position > stopPosition)
+        {
+            position = stopPosition;
+        }
+    }
+}
+
+void vehicles()
+{
+
+    bool verticalGreen = (signal == 0);
+    bool horizontalGreen = (signal == 2);
+
+    const float stopNS = 52.0;
+    const float stopSN = -74.0;
+
+    const float stopEW = -74.0;
+    const float stopWE = 52.0;
+
+    moveNegativeCar(
+        carNS1,
+        stopNS,
+        verticalGreen
+    );
+
+    moveNegativeCar(
+        carNS2,
+        stopNS,
+        verticalGreen
+    );
+
+    movePositiveCar(
+        carSN1,
+        stopSN,
+        verticalGreen
+    );
+
+    movePositiveCar(
+        carSN2,
+        stopSN,
+        verticalGreen
+    );
+
+    movePositiveCar(
+        carEW1,
+        stopEW,
+        horizontalGreen
+    );
+
+    movePositiveCar(
+        carEW2,
+        stopEW,
+        horizontalGreen
+    );
+
+    moveNegativeCar(
+        carWE1,
+        stopWE,
+        horizontalGreen
+    );
+
+    moveNegativeCar(
+        carWE2,
+        stopWE,
+        horizontalGreen
+    );
+
+    if (carNS1 < -123)
+    {
+        carNS1 = 130;
+    }
+
+    if (carNS2 < -123)
+    {
+        carNS2 = 155;
+    }
+
+    if (carSN1 > 103)
+    {
+        carSN1 = -130;
+    }
+
+    if (carSN2 > 103)
+    {
+        carSN2 = -155;
+    }
+
+    if (carEW1 > 103)
+    {
+        carEW1 = -130;
+    }
+
+    if (carEW2 > 103)
+    {
+        carEW2 = -155;
+    }
+
+    if (carWE1 < -123)
+    {
+        carWE1 = 130;
+    }
+
+    if (carWE2 < -123)
+    {
+        carWE2 = 155;
+    }
+
+    carModel(
+        -20,
+        carNS1,
+        0.05, 0.30, 0.95,
+        0
+    );
+
+    carModel(
+        -8,
+        carNS2,
+        0.90, 0.08, 0.08,
+        0
+    );
+
+    carModel(
+        10,
+        carSN1,
+        0.05, 0.78, 0.25,
+        1
+    );
+
+    carModel(
+        22,
+        carSN2,
+        0.95, 0.72, 0.05,
+        1
+    );
+
+    carModel(
+        carEW1,
+        23,
+        0.95, 0.28, 0.04,
+        2
+    );
+
+    carModel(
+        carEW2,
+        7,
+        0.05, 0.68, 0.90,
+        2
+    );
+
+    carModel(
+        carWE1,
+        -9,
+        0.62, 0.15, 0.72,
+        3
+    );
+
+    carModel(
+        carWE2,
+        -25,
+        0.95, 0.42, 0.04,
+        3
+    );
+}
+
+void transparentRect(float x1, float y1,
+                     float x2, float y2,
+                     float r, float g, float b,
+                     float alpha)
+{
+    glColor4f(r, g, b, alpha);
+
+    glBegin(GL_QUADS);
+
+    glVertex2f(x1, y1);
+    glVertex2f(x2, y1);
+    glVertex2f(x2, y2);
+    glVertex2f(x1, y2);
+
+    glEnd();
+}
+
+void transparentText(float x, float y,
+                     const char str[],
+                     float r, float g, float b,
+                     float alpha)
+{
+    glColor4f(r, g, b, alpha);
+    glRasterPos2f(x, y);
+
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        glutBitmapCharacter(
+            GLUT_BITMAP_HELVETICA_18,
+            str[i]
+        );
+    }
+}
+
+void fadedText(float x, float y,
+               const char str[],
+               float r, float g, float b)
+{
+
+    transparentText(
+        x - 0.35, y - 0.35,
+        str,
+        0, 0, 0,
+        0.12
+    );
+
+    transparentText(
+        x + 0.35, y + 0.35,
+        str,
+        0, 0, 0,
+        0.12
+    );
+
+    transparentText(
+        x, y,
+        str,
+        r, g, b,
+        0.48
+    );
+}
+void controlPanel()
+{
+
+    rect(
+        -19, -15,
+         19,  15,
+        0.06, 0.06, 0.07
+    );
+
+    glColor3f(0.55, 0.55, 0.55);
+    glLineWidth(1.5);
+
+    glBegin(GL_LINE_LOOP);
+
+    glVertex2f(-19, -15);
+    glVertex2f(19, -15);
+    glVertex2f(19, 15);
+    glVertex2f(-19, 15);
+
+    glEnd();
+
+    glLineWidth(1.0);
+
+    text(
+        -8.5, 9,
+        "KEY GUIDE",
+        0.35, 0.75, 0.40
+    );
+
+    text(
+        -7.5, 3,
+        "1  SUNNY",
+        0.65, 0.65, 0.65
+    );
+
+    text(
+        -7.5, -3,
+        "2  RAIN",
+        0.65, 0.65, 0.65
+    );
+
+    text(
+        -7.5, -9,
+        "3  SNOW",
+        0.65, 0.65, 0.65
+    );
+}
+
+void centerRoadDesign()
+{
+    float left = -30;
+    float right = 30;
+    float bottom = -30;
+    float top = 30;
+
+    glColor3f(0.55, 0.55, 0.55);
+    glLineWidth(2.0);
+
+    glBegin(GL_LINE_LOOP);
+
+    glVertex2f(left, bottom);
+    glVertex2f(right, bottom);
+    glVertex2f(right, top);
+    glVertex2f(left, top);
+
+    glEnd();
+
+    glBegin(GL_LINES);
+
+    for (float c = -45; c <= 45; c += 20)
+    {
+        float x1;
+        float y1;
+        float x2;
+        float y2;
+
+        x1 = left;
+        y1 = c - x1;
+
+        if (y1 < bottom)
+        {
+            y1 = bottom;
+            x1 = c - y1;
+        }
+        else if (y1 > top)
+        {
+            y1 = top;
+            x1 = c - y1;
+        }
+
+        x2 = right;
+        y2 = c - x2;
+
+        if (y2 < bottom)
+        {
+            y2 = bottom;
+            x2 = c - y2;
+        }
+        else if (y2 > top)
+        {
+            y2 = top;
+            x2 = c - y2;
+        }
+
+        glVertex2f(x1, y1);
+        glVertex2f(x2, y2);
+
+        x1 = left;
+        y1 = x1 - c;
+
+        if (y1 < bottom)
+        {
+            y1 = bottom;
+            x1 = y1 + c;
+        }
+        else if (y1 > top)
+        {
+            y1 = top;
+            x1 = y1 + c;
+        }
+
+        x2 = right;
+        y2 = x2 - c;
+
+        if (y2 < bottom)
+        {
+            y2 = bottom;
+            x2 = y2 + c;
+        }
+        else if (y2 > top)
+        {
+            y2 = top;
+            x2 = y2 + c;
+        }
+
+        glVertex2f(x1, y1);
+        glVertex2f(x2, y2);
+    }
+
+    glEnd();
+
+    glLineWidth(1.0);
+}
+void weatherEffect()
+{
+
+    if (mode == 2)
+    {
+        glColor3f(0.5, 0.7, 1.0);
+
+        glBegin(GL_LINES);
+
+        for (int i = 0; i < 150; i++)
+        {
+            glVertex2f(
+                rainX[i],
+                rainY[i]
+            );
+
+            glVertex2f(
+                rainX[i] - 2,
+                rainY[i] - 8
+            );
+
+            rainY[i] -= 1.0;
+
+            if (rainY[i] < -100)
+            {
+                rainY[i] = 100;
+                rainX[i] = -100 + rand() % 200;
+            }
+        }
+
+        glEnd();
+    }
+
+    else if (mode == 3)
+    {
+        for (int i = 0; i < 150; i++)
+        {
+            circle(
+                snowX[i],
+                snowY[i],
+                1.5,
+                1.0,
+                1.0,
+                1.0
+            );
+
+            snowY[i] -= 0.3;
+
+            if (snowY[i] < -100)
+            {
+                snowY[i] = 100;
+                snowX[i] = -100 + rand() % 200;
+            }
+        }
+    }
+}
+void display()
+{
+    if (mode == 1)
+    {
+        glClearColor(0.1, 0.55, 0.9, 1);
+    }
+
+    if (mode == 2)
+    {
+        glClearColor(0.12, 0.15, 0.22, 1);
+    }
+
+    if (mode == 3)
+    {
+        glClearColor(0.75, 0.85, 0.95, 1);
+    }
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    sidewalk();
+    road();
+    centerRoadDesign();
+
+    controlPanel();
+
+    environment();
+    boards();
+
+    vehicles();
+    trafficSystem();
+
+    weatherEffect();
+
+    glFlush();
+}
+
+void animation(int)
+{
+    glutPostRedisplay();
+
+    glutTimerFunc(
+        30,
+        animation,
+        0
+    );
+}
+
+void signalTimer(int)
+{
+    timerValue--;
+
+    if (timerValue <= 0)
+    {
+        if (signal == 0)
+        {
+            signal = 1;
+            timerValue = yellowTime;
+        }
+
+        else if (signal == 1)
+        {
+            signal = 2;
+            timerValue = 40;
+        }
+
+        else if (signal == 2)
+        {
+            signal = 3;
+            timerValue = yellowTime;
+        }
+
+        else if (signal == 3)
+        {
+            signal = 0;
+            timerValue = 35;
+        }
+    }
+
+    glutTimerFunc(
+        1000,
+        signalTimer,
+        0
+    );
+}
+
+void updateCarSpeed()
+{
+    float normalSpeed;
+
+    if (mode == 1)
+    {
+        normalSpeed = 0.35;
+    }
+    else if (mode == 2)
+    {
+        normalSpeed = 0.22;
+    }
+    else
+    {
+        normalSpeed = 0.10;
+    }
+
+    if (doubleSpeed)
+    {
+        speedValue = normalSpeed * 2.0;
+    }
+    else
+    {
+        speedValue = normalSpeed;
+    }
+}
+
+void keyboard(unsigned char key, int x, int y)
+{
+
+    if (key == '1')
+    {
+        mode = 1;
+        updateCarSpeed();
+    }
+
+    else if (key == '2')
+    {
+        mode = 2;
+        updateCarSpeed();
+    }
+
+    else if (key == '3')
+    {
+        mode = 3;
+        updateCarSpeed();
+    }
+
+    else if (key == ' ')
+    {
+        doubleSpeed = !doubleSpeed;
+        updateCarSpeed();
+    }
+
+    else if (key == 27)
+    {
+        exit(0);
+    }
+
+    glutPostRedisplay();
+}
+
+void init()
+{
+    glEnable(GL_BLEND);
+
+    glBlendFunc(
+        GL_SRC_ALPHA,
+        GL_ONE_MINUS_SRC_ALPHA
+    );
+
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+
+    gluOrtho2D(-100, 100, -100, 100);
+
+    for (int i = 0; i < 150; i++)
+    {
+        rainX[i] = -100 + rand() % 200;
+        rainY[i] = -100 + rand() % 200;
+
+        snowX[i] = -100 + rand() % 200;
+        snowY[i] = -100 + rand() % 200;
+    }
+}
+
+int main(int argc, char **argv)
+{
+    glutInit(&argc, argv);
+
+    glutInitDisplayMode(
+        GLUT_SINGLE | GLUT_RGB
+    );
+
+    glutInitWindowSize(
+        1100,
+        800
+    );
+
+    glutCreateWindow(
+        "Traffic Control System"
+    );
+
+    init();
+
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard);
+
+    glutTimerFunc(
+        30,
+        animation,
+        0
+    );
+
+    glutTimerFunc(
+        1000,
+        signalTimer,
+        0
+    );
+
+    glutMainLoop();
+
+    return 0;
+}
