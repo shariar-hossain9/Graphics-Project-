@@ -1,0 +1,2617 @@
+/*
+    TRAFFIC CONTROL SYSTEM - FULLY COMMENTED VERSION
+
+    Purpose:
+    This program creates a 2D four-way traffic junction using C++ and OpenGL/GLUT.
+    It includes moving vehicles, automatic traffic lights, countdown timers,
+    sunny/rainy/snowy modes, weather-dependent road effects, roadside boards,
+    and keyboard controls.
+
+    Keyboard controls:
+      1      -> Sunny mode
+      2      -> Rain mode
+      3      -> Snow mode
+      Space  -> Toggle double vehicle speed
+      Esc    -> Exit the program
+
+    Important note:
+    Only explanatory comments were added. The original program logic was not changed.
+*/
+
+// Provides Windows-specific definitions required by the OpenGL/GLUT setup on Windows.
+#include <windows.h>
+// Imports GLUT and OpenGL drawing, window, keyboard, and timer functions.
+#include <GL/glut.h>
+// Provides mathematical functions such as sin(), cos(), and fabs().
+#include <math.h>
+// Provides rand(), exit(), and other general utility functions.
+#include <stdlib.h>
+// Provides sprintf(), which is used to format the timer value as text.
+#include <stdio.h>
+
+// Current weather mode: 1 = sunny, 2 = rain, 3 = snow.
+int mode = 1;
+// Current traffic-light phase: 0 = vertical green, 1 = vertical yellow, 2 = horizontal green, 3 = horizontal yellow.
+int signal = 0;
+// Countdown value currently displayed on the traffic-light timers.
+int timerValue = 35;
+// Duration of each yellow-light phase in seconds.
+int yellowTime = 12;
+
+// Current amount added to or subtracted from each car position during one animation update.
+float speedValue = 0.35;
+// Stores whether the Spacebar double-speed feature is active.
+bool doubleSpeed = false;
+
+// Position of the first north-to-south car.
+float carNS1 = 98;
+// Position of the second north-to-south car.
+float carNS2 = 140;
+
+// Position of the first south-to-north car.
+float carSN1 = -120;
+// Position of the second south-to-north car.
+float carSN2 = -150;
+
+// Position of the first eastward-moving car.
+float carEW1 = -120;
+// Position of the second eastward-moving car.
+float carEW2 = -150;
+
+// Position of the first westward-moving car.
+float carWE1 = 98;
+// Position of the second westward-moving car.
+float carWE2 = 130;
+
+// Horizontal coordinates of 150 animated rain particles.
+float rainX[150];
+// Vertical coordinates of 150 animated rain particles.
+float rainY[150];
+
+// Horizontal coordinates of 150 animated snow particles.
+float snowX[150];
+// Vertical coordinates of 150 animated snow particles.
+float snowY[150];
+
+
+// ============================================================================
+// Function: rect()
+// Purpose : Draws a filled rectangle using four corner coordinates and an RGB color.
+// ============================================================================
+void rect(float x1, float y1, float x2, float y2,
+          // Declares a variable used by this part of the program.
+          float r, float g, float b)
+{
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r, g, b);
+
+    // Begins drawing one or more four-sided filled shapes.
+    glBegin(GL_QUADS);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(x1, y1);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(x2, y1);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(x2, y2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(x1, y2);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+}
+
+
+// ============================================================================
+// Function: circle()
+// Purpose : Draws a filled circle by generating 100 points around its circumference.
+// ============================================================================
+void circle(float x, float y, float radius,
+            // Declares a variable used by this part of the program.
+            float red, float green, float blue)
+{
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(red, green, blue);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; i < 100; i++)
+    {
+        // Declares a variable used by this part of the program.
+        float angle = 2 * 3.1416 * i / 100;
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(
+            x + radius * cos(angle),
+            y + radius * sin(angle)
+        );
+    }
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+}
+
+
+// ============================================================================
+// Function: ellipse()
+// Purpose : Draws a transparent or solid ellipse using separate horizontal and vertical radii.
+// ============================================================================
+void ellipse(float x, float y,
+             // Declares a variable used by this part of the program.
+             float radiusX, float radiusY,
+             // Declares a variable used by this part of the program.
+             float red, float green, float blue,
+             // Declares a variable used by this part of the program.
+             float alpha)
+{
+    // Sets the drawing color and alpha transparency.
+    glColor4f(red, green, blue, alpha);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; i < 100; i++)
+    {
+        // Declares a variable used by this part of the program.
+        float angle = 2.0f * 3.1416f * i / 100.0f;
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(
+            x + radiusX * cos(angle),
+            y + radiusY * sin(angle)
+        );
+    }
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+}
+
+
+
+// ============================================================================
+// Function: text()
+// Purpose : Displays bitmap text at a specified OpenGL coordinate.
+// ============================================================================
+void text(float x, float y, const char str[],
+          // Declares a variable used by this part of the program.
+          float r, float g, float b)
+{
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r, g, b);
+    // Sets the screen position where bitmap text will begin.
+    glRasterPos2f(x, y);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        // Draws one character using the selected GLUT bitmap font.
+        glutBitmapCharacter(
+            GLUT_BITMAP_HELVETICA_18,
+            str[i]
+        );
+    }
+}
+
+
+// ============================================================================
+// Function: road()
+// Purpose : Draws the roads, borders, center lines, lane markings, and zebra crossings. Road colors change with weather mode.
+// ============================================================================
+void road()
+{
+    // Declares a variable used by this part of the program.
+    float roadR = 0.06f;
+    // Declares a variable used by this part of the program.
+    float roadG = 0.06f;
+    // Declares a variable used by this part of the program.
+    float roadB = 0.07f;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Assigns or updates a value used in the current calculation.
+        roadR = 0.025f;
+        // Assigns or updates a value used in the current calculation.
+        roadG = 0.055f;
+        // Assigns or updates a value used in the current calculation.
+        roadB = 0.080f;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Assigns or updates a value used in the current calculation.
+        roadR = 0.22f;
+        // Assigns or updates a value used in the current calculation.
+        roadG = 0.25f;
+        // Assigns or updates a value used in the current calculation.
+        roadB = 0.29f;
+    }
+
+    // Calls rect() to draw or update this specific object.
+    rect(-100, 35, 100, -35, roadR, roadG, roadB);
+    // Calls rect() to draw or update this specific object.
+    rect(-35, 100, 35, -100, roadR, roadG, roadB);
+
+    // Declares a variable used by this part of the program.
+    float borderR = 0.55f;
+    // Declares a variable used by this part of the program.
+    float borderG = 0.55f;
+    // Declares a variable used by this part of the program.
+    float borderB = 0.55f;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Assigns or updates a value used in the current calculation.
+        borderR = 0.30f;
+        // Assigns or updates a value used in the current calculation.
+        borderG = 0.34f;
+        // Assigns or updates a value used in the current calculation.
+        borderB = 0.38f;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Assigns or updates a value used in the current calculation.
+        borderR = 0.78f;
+        // Assigns or updates a value used in the current calculation.
+        borderG = 0.82f;
+        // Assigns or updates a value used in the current calculation.
+        borderB = 0.86f;
+    }
+
+    // Calls rect() to draw or update this specific object.
+    rect(-100, 40, 100, 35, borderR, borderG, borderB);
+    // Calls rect() to draw or update this specific object.
+    rect(-100, -35, 100, -40, borderR, borderG, borderB);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-40, 100, -35, -100, borderR, borderG, borderB);
+    // Calls rect() to draw or update this specific object.
+    rect(35, 100, 40, -100, borderR, borderG, borderB);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-3, 100, 3, 52, 1, 0.8, 0);
+    // Calls rect() to draw or update this specific object.
+    rect(-3, -52, 3, -100, 1, 0.8, 0);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-100, -3, -52, 3, 1, 0.8, 0);
+    // Calls rect() to draw or update this specific object.
+    rect(52, -3, 100, 3, 1, 0.8, 0);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (float y = 58; y <= 90; y += 16)
+    {
+        // Calls rect() to draw or update this specific object.
+        rect(-28, y, -22, y + 8, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(22, y, 28, y + 8, 1, 1, 1);
+    }
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (float y = -98; y <= -58; y += 16)
+    {
+        // Calls rect() to draw or update this specific object.
+        rect(-28, y, -22, y + 8, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(22, y, 28, y + 8, 1, 1, 1);
+    }
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (float x = -98; x <= -58; x += 16)
+    {
+        // Calls rect() to draw or update this specific object.
+        rect(x, -28, x + 8, -22, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(x, 22, x + 8, 28, 1, 1, 1);
+    }
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (float x = 58; x <= 90; x += 16)
+    {
+        // Calls rect() to draw or update this specific object.
+        rect(x, -28, x + 8, -22, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(x, 22, x + 8, 28, 1, 1, 1);
+    }
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; i < 10; i++)
+    {
+        // Declares a variable used by this part of the program.
+        float position = -30 + i * 6;
+
+        // Calls rect() to draw or update this specific object.
+        rect(position, 40, position + 3.2, 50, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(position, -50, position + 3.2, -40, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(40, position, 50, position + 3.2, 1, 1, 1);
+        // Calls rect() to draw or update this specific object.
+        rect(-50, position, -40, position + 3.2, 1, 1, 1);
+    }
+}
+
+
+// ============================================================================
+// Function: sidewalk()
+// Purpose : Draws the four sidewalk areas and changes their colors for sunny, rainy, and snowy weather.
+// ============================================================================
+void sidewalk()
+{
+    // Declares a variable used by this part of the program.
+    float r = 0.35f;
+    // Declares a variable used by this part of the program.
+    float g = 0.35f;
+    // Declares a variable used by this part of the program.
+    float b = 0.35f;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Assigns or updates a value used in the current calculation.
+        r = 0.20f;
+        // Assigns or updates a value used in the current calculation.
+        g = 0.23f;
+        // Assigns or updates a value used in the current calculation.
+        b = 0.27f;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Assigns or updates a value used in the current calculation.
+        r = 0.82f;
+        // Assigns or updates a value used in the current calculation.
+        g = 0.86f;
+        // Assigns or updates a value used in the current calculation.
+        b = 0.90f;
+    }
+
+    // Calls rect() to draw or update this specific object.
+    rect(-100, 100, -40, 40, r, g, b);
+    // Calls rect() to draw or update this specific object.
+    rect(40, 100, 100, 40, r, g, b);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-100, -40, -40, -100, r, g, b);
+    // Calls rect() to draw or update this specific object.
+    rect(40, -40, 100, -100, r, g, b);
+}
+
+
+// ============================================================================
+// Function: surfaceWeather()
+// Purpose : Adds wet-road reflections in rain mode and snow accumulation effects in snow mode.
+// ============================================================================
+void surfaceWeather()
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.20f, 0.48f, 0.68f, 0.18f);
+
+        // Begins drawing one or more four-sided filled shapes.
+        glBegin(GL_QUADS);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-100, 33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(100, 33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(100, -33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-100, -33);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-33, 100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(33, 100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(33, -100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-33, -100);
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 32; i++)
+        {
+            // Declares a variable used by this part of the program.
+            float x = -92.0f + (float)((i * 37) % 184);
+            // Declares a variable used by this part of the program.
+            float y = -92.0f + (float)((i * 61) % 184);
+
+            // Checks this condition and executes the following block only when it is true.
+            if (fabs(x) < 32.0f || fabs(y) < 32.0f)
+            {
+                // Declares a variable used by this part of the program.
+                float width = 3.0f + (i % 4);
+                // Declares a variable used by this part of the program.
+                float height = 0.8f + (i % 3) * 0.35f;
+
+                // Calls ellipse() to draw or update this specific object.
+                ellipse(
+                    x,
+                    y,
+                    width,
+                    height,
+                    0.35f,
+                    0.65f,
+                    0.85f,
+                    0.22f
+                );
+            }
+        }
+
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.75f, 0.90f, 1.0f, 0.24f);
+        // Changes the thickness of subsequently drawn lines.
+        glLineWidth(1.2f);
+
+        // Begins drawing independent line segments.
+        glBegin(GL_LINES);
+
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 24; i++)
+        {
+            // Declares a variable used by this part of the program.
+            float x = -88.0f + (float)((i * 41) % 176);
+            // Declares a variable used by this part of the program.
+            float y = -88.0f + (float)((i * 29) % 176);
+
+            // Checks this condition and executes the following block only when it is true.
+            if (fabs(x) < 31.0f || fabs(y) < 31.0f)
+            {
+                // Adds a 2D vertex to the shape currently being drawn.
+                glVertex2f(x - 2.5f, y);
+                // Adds a 2D vertex to the shape currently being drawn.
+                glVertex2f(x + 2.5f, y);
+            }
+        }
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+
+        // Changes the thickness of subsequently drawn lines.
+        glLineWidth(1.0f);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.92f, 0.96f, 1.0f, 0.22f);
+
+        // Begins drawing one or more four-sided filled shapes.
+        glBegin(GL_QUADS);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-100, 33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(100, 33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(100, -33);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-100, -33);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-33, 100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(33, 100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(33, -100);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-33, -100);
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 60; i++)
+        {
+            // Declares a variable used by this part of the program.
+            float x = -96.0f + (float)((i * 43) % 192);
+            // Declares a variable used by this part of the program.
+            float y = -96.0f + (float)((i * 67) % 192);
+
+            // Declares a variable used by this part of the program.
+            float sizeX = 1.8f + (i % 5) * 0.55f;
+            // Declares a variable used by this part of the program.
+            float sizeY = 0.8f + (i % 4) * 0.30f;
+
+            // Calls ellipse() to draw or update this specific object.
+            ellipse(
+                x,
+                y,
+                sizeX,
+                sizeY,
+                0.94f,
+                0.97f,
+                1.0f,
+                0.72f
+            );
+        }
+
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 18; i++)
+        {
+            // Declares a variable used by this part of the program.
+            float x = -90.0f + (float)((i * 53) % 180);
+            // Declares a variable used by this part of the program.
+            float y = -90.0f + (float)((i * 31) % 180);
+
+            // Calls ellipse() to draw or update this specific object.
+            ellipse(
+                x,
+                y,
+                4.0f + (i % 3),
+                1.2f + (i % 2),
+                1.0f,
+                1.0f,
+                1.0f,
+                0.55f
+            );
+        }
+    }
+}
+
+
+
+// ============================================================================
+// Function: trafficPole()
+// Purpose : Draws one complete traffic-light pole, signal lamps, countdown timer, and weather effects.
+// ============================================================================
+void trafficPole(float x, float y, int active)
+{
+    // Declares a variable used by this part of the program.
+    int side = (x < 0) ? 1 : -1;
+
+    // Declares a variable used by this part of the program.
+    float lightX = x + side * 14;
+    // Declares a variable used by this part of the program.
+    float timerX = x + side * 5;
+
+    // Declares a variable used by this part of the program.
+    float armLeft;
+    // Declares a variable used by this part of the program.
+    float armRight;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (side == 1)
+    {
+        // Assigns or updates a value used in the current calculation.
+        armLeft = x;
+        // Assigns or updates a value used in the current calculation.
+        armRight = lightX;
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Assigns or updates a value used in the current calculation.
+        armLeft = lightX;
+        // Assigns or updates a value used in the current calculation.
+        armRight = x;
+    }
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 1.7,
+        y - 8,
+        x + 1.7,
+        y + 29,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 1.1,
+        y - 7,
+        x + 1.1,
+        y + 28,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 0.35,
+        y - 6,
+        x + 0.15,
+        y + 27,
+        0.65,
+        0.72,
+        0.76
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 4.5,
+        y - 10,
+        x + 4.5,
+        y - 7,
+        0.04,
+        0.06,
+        0.08
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 3.6,
+        y - 9.2,
+        x + 3.6,
+        y - 7,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        armLeft,
+        y + 26,
+        armRight,
+        y + 29,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        armLeft,
+        y + 26.6,
+        armRight,
+        y + 28.4,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        armLeft + 0.8,
+        y + 27.6,
+        armRight - 0.8,
+        y + 28.1,
+        0.65,
+        0.72,
+        0.76
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        lightX - 4.8,
+        y + 9,
+        lightX + 4.8,
+        y + 32,
+        0.03,
+        0.04,
+        0.05
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        lightX - 4,
+        y + 10,
+        lightX + 4,
+        y + 31,
+        0.09,
+        0.11,
+        0.12
+    );
+
+    // Calls circle() to draw or update this specific object.
+    circle(
+        lightX,
+        y + 27,
+        2.7,
+        // Assigns or updates a value used in the current calculation.
+        active == 0 ? 1.0 : 0.18,
+        0,
+        0
+    );
+
+    // Calls circle() to draw or update this specific object.
+    circle(
+        lightX,
+        y + 20.5,
+        2.7,
+        // Assigns or updates a value used in the current calculation.
+        active == 1 ? 1.0 : 0.18,
+        // Assigns or updates a value used in the current calculation.
+        active == 1 ? 0.78 : 0.08,
+        0
+    );
+
+    // Calls circle() to draw or update this specific object.
+    circle(
+        lightX,
+        y + 14,
+        2.7,
+        0,
+        // Assigns or updates a value used in the current calculation.
+        active == 2 ? 1.0 : 0.18,
+        0
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        timerX - 0.9,
+        y + 14,
+        timerX + 0.9,
+        y + 27,
+        0.07,
+        0.10,
+        0.13
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        timerX - 0.45,
+        y + 14,
+        timerX + 0.45,
+        y + 27,
+        0.28,
+        0.38,
+        0.45
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        timerX - 5.5,
+        y + 4,
+        timerX + 5.5,
+        y + 14,
+        0.04,
+        0.05,
+        0.06
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        timerX - 4.8,
+        y + 4.7,
+        timerX + 4.8,
+        y + 13.3,
+        0.25,
+        0.31,
+        0.35
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        timerX - 4.1,
+        y + 5.4,
+        timerX + 4.1,
+        y + 12.6,
+        0.015,
+        0.015,
+        0.02
+    );
+
+    // Declares a variable used by this part of the program.
+    char timerText[10];
+
+    // Converts the integer countdown into a two-digit character string.
+    sprintf(timerText, "%02d", timerValue);
+
+    // Calls text() to draw or update this specific object.
+    text(
+        timerX - 3.7,
+        y + 6.7,
+        timerText,
+        1.0,
+        0.12,
+        0.05
+    );
+
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.60f, 0.84f, 1.0f, 0.28f);
+        // Changes the thickness of subsequently drawn lines.
+        glLineWidth(1.0f);
+
+        // Begins drawing independent line segments.
+        glBegin(GL_LINES);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x, y + 27);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x + side * 10, y + 25);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(timerX - 4, y + 12);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(timerX + 4, y + 9);
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            lightX,
+            y + 32.0f,
+            5.2f,
+            1.2f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.95f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            timerX,
+            y + 14.0f,
+            5.8f,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.90f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            x,
+            y - 9.0f,
+            5.5f,
+            1.2f,
+            0.96f,
+            0.98f,
+            1.0f,
+            0.92f
+        );
+    }
+
+}
+
+
+// ============================================================================
+// Function: trafficSystem()
+// Purpose : Controls the active color of all four traffic lights according to the current signal state.
+// ============================================================================
+void trafficSystem()
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (signal == 0)
+    {
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, 50, 2);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, -50, 0);
+
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, -50, 2);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, 50, 0);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (signal == 1)
+    {
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, 50, 1);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, -50, 0);
+
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, -50, 1);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, 50, 0);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (signal == 2)
+    {
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, 50, 0);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, -50, 2);
+
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, -50, 0);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, 50, 2);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (signal == 3)
+    {
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, 50, 0);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(-56, -50, 1);
+
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, -50, 0);
+        // Calls trafficPole() to draw or update this specific object.
+        trafficPole(56, 50, 1);
+    }
+}
+
+
+// ============================================================================
+// Function: centeredText()
+// Purpose : Calculates the width of a message and draws it horizontally centered around a given coordinate.
+// ============================================================================
+void centeredText(float centerX, float y,
+                  const char str[],
+                  // Declares a variable used by this part of the program.
+                  float r, float g, float b)
+{
+    // Declares a variable used by this part of the program.
+    int pixelWidth = 0;
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; str[i] != '\0'; i++)
+    {
+        pixelWidth += glutBitmapWidth(
+            GLUT_BITMAP_HELVETICA_18,
+            str[i]
+        );
+    }
+
+    // Declares a variable used by this part of the program.
+    float windowWidth = glutGet(GLUT_WINDOW_WIDTH);
+    // Declares a variable used by this part of the program.
+    float worldWidth = pixelWidth * 200.0f / windowWidth;
+
+    // Calls text() to draw or update this specific object.
+    text(
+        centerX - worldWidth / 2.0f,
+        y,
+        str,
+        r, g, b
+    );
+}
+
+
+// ============================================================================
+// Function: messageBoard()
+// Purpose : Draws one roadside digital message board and selects its message according to the weather mode.
+// ============================================================================
+void messageBoard(float x, float y)
+{
+    // Declares a variable used by this part of the program.
+    float screenR;
+    // Declares a variable used by this part of the program.
+    float screenG;
+    // Declares a variable used by this part of the program.
+    float screenB;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 1)
+    {
+        // Assigns or updates a value used in the current calculation.
+        screenR = 0.03;
+        // Assigns or updates a value used in the current calculation.
+        screenG = 0.28;
+        // Assigns or updates a value used in the current calculation.
+        screenB = 0.12;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 2)
+    {
+        // Assigns or updates a value used in the current calculation.
+        screenR = 0.03;
+        // Assigns or updates a value used in the current calculation.
+        screenG = 0.18;
+        // Assigns or updates a value used in the current calculation.
+        screenB = 0.30;
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Assigns or updates a value used in the current calculation.
+        screenR = 0.08;
+        // Assigns or updates a value used in the current calculation.
+        screenG = 0.25;
+        // Assigns or updates a value used in the current calculation.
+        screenB = 0.28;
+    }
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x + 1.2, y - 1.2,
+        x + 36.2, y + 18.8,
+        0.03, 0.04, 0.05
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x, y,
+        x + 35, y + 20,
+        0.10, 0.16, 0.20
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x + 1, y + 18.5,
+        x + 34, y + 19.5,
+        0.42, 0.52, 0.57
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x + 1.5, y + 1.5,
+        x + 33.5, y + 18.5,
+        0.28, 0.36, 0.40
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x + 3, y + 3,
+        x + 32, y + 17,
+        screenR, screenG, screenB
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x + 4, y + 15.5,
+        x + 31, y + 16.4,
+        screenR + 0.08,
+        screenG + 0.10,
+        screenB + 0.08
+    );
+
+    // Calls circle() to draw or update this specific object.
+    circle(
+        x + 5,
+        y + 5,
+        1.2,
+        0.20, 1.0, 0.35
+    );
+
+    // Calls circle() to draw or update this specific object.
+    circle(
+        x + 30,
+        y + 5,
+        1.2,
+        0.20, 1.0, 0.35
+    );
+
+    // Declares a variable used by this part of the program.
+    float boardCenterX = x + 17.5;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 1)
+    {
+        // Calls centeredText() to draw or update this specific object.
+        centeredText(
+            boardCenterX,
+            y + 9,
+            "A Good Day",
+            1.0, 0.90, 0.25
+        );
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 2)
+    {
+        // Calls centeredText() to draw or update this specific object.
+        centeredText(
+            boardCenterX,
+            y + 9,
+            "Slow Down",
+            0.75, 0.92, 1.0
+        );
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Calls centeredText() to draw or update this specific object.
+        centeredText(
+            boardCenterX,
+            y + 9,
+            "Drive Slowly",
+            0.90, 0.98, 1.0
+        );
+    }
+
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.65f, 0.88f, 1.0f, 0.30f);
+        // Changes the thickness of subsequently drawn lines.
+        glLineWidth(1.0f);
+
+        // Begins drawing independent line segments.
+        glBegin(GL_LINES);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x + 6, y + 16);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x + 12, y + 13);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x + 20, y + 16);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x + 26, y + 13);
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            x + 17.5f,
+            y + 20.0f,
+            17.0f,
+            1.5f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.95f
+        );
+    }
+
+}
+
+
+// ============================================================================
+// Function: boards()
+// Purpose : Places four message boards at the four corners of the scene.
+// ============================================================================
+void boards()
+{
+    // Calls messageBoard() to draw or update this specific object.
+    messageBoard(-98, 70);
+    // Calls messageBoard() to draw or update this specific object.
+    messageBoard(63, 70);
+
+    // Calls messageBoard() to draw or update this specific object.
+    messageBoard(-98, -85);
+    // Calls messageBoard() to draw or update this specific object.
+    messageBoard(63, -85);
+}
+
+
+// ============================================================================
+// Function: tree()
+// Purpose : Draws a tree and applies rain or snow effects according to the selected mode.
+// ============================================================================
+void tree(float x, float y)
+{
+    // Calls circle() to draw or update this specific object.
+    circle(
+        x,
+        y,
+        5,
+        // Changes the active weather mode.
+        mode == 2 ? 0.12f : 0.22f,
+        // Changes the active weather mode.
+        mode == 2 ? 0.14f : 0.22f,
+        // Changes the active weather mode.
+        mode == 2 ? 0.16f : 0.22f
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        x - 2,
+        y,
+        x + 2,
+        y + 13,
+        // Changes the active weather mode.
+        mode == 2 ? 0.24f : 0.38f,
+        // Changes the active weather mode.
+        mode == 2 ? 0.14f : 0.20f,
+        // Changes the active weather mode.
+        mode == 2 ? 0.07f : 0.07f
+    );
+
+    // Changes the active weather mode.
+    float centerR = mode == 2 ? 0.025f : 0.04f;
+    // Changes the active weather mode.
+    float centerG = mode == 2 ? 0.25f : 0.42f;
+    // Changes the active weather mode.
+    float centerB = mode == 2 ? 0.07f : 0.08f;
+
+    // Changes the active weather mode.
+    float sideR = mode == 2 ? 0.035f : 0.06f;
+    // Changes the active weather mode.
+    float sideG = mode == 2 ? 0.32f : 0.55f;
+    // Changes the active weather mode.
+    float sideB = mode == 2 ? 0.08f : 0.10f;
+
+    // Calls circle() to draw or update this specific object.
+    circle(x, y + 18, 7, centerR, centerG, centerB);
+    // Calls circle() to draw or update this specific object.
+    circle(x - 5, y + 15, 5.5, sideR, sideG, sideB);
+    // Calls circle() to draw or update this specific object.
+    circle(x + 5, y + 15, 5.5, sideR, sideG, sideB);
+    // Calls circle() to draw or update this specific object.
+    circle(x, y + 22, 5, sideR, sideG + 0.05f, sideB);
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            x - 2.5f,
+            y + 22.5f,
+            2.0f,
+            0.7f,
+            0.55f,
+            0.82f,
+            0.95f,
+            0.40f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            x + 3.5f,
+            y + 16.5f,
+            1.5f,
+            0.6f,
+            0.55f,
+            0.82f,
+            0.95f,
+            0.32f
+        );
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(x, y + 24.5f, 5.3f, 1.8f, 1.0f, 1.0f, 1.0f, 0.95f);
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(x - 5.5f, y + 18.5f, 4.2f, 1.5f, 0.98f, 0.99f, 1.0f, 0.92f);
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(x + 5.5f, y + 18.5f, 4.2f, 1.5f, 0.98f, 0.99f, 1.0f, 0.92f);
+        // Calls rect() to draw or update this specific object.
+        rect(x - 2.3f, y + 9.5f, x + 2.3f, y + 12.5f, 0.92f, 0.95f, 0.98f);
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(x, y + 0.5f, 7.0f, 1.8f, 0.95f, 0.97f, 1.0f, 0.90f);
+    }
+}
+
+
+// ============================================================================
+// Function: environment()
+// Purpose : Draws environmental objects placed around the road.
+// ============================================================================
+void environment()
+{
+    // Calls tree() to draw or update this specific object.
+    tree(-50, -96);
+}
+
+
+// ============================================================================
+// Function: carModel()
+// Purpose : Draws a detailed car, rotates it according to direction, and adds rain or snow effects.
+// ============================================================================
+void carModel(float x, float y,
+              // Declares a variable used by this part of the program.
+              float r, float g, float b,
+              // Declares a variable used by this part of the program.
+              int direction)
+{
+    // Declares a variable used by this part of the program.
+    float centerX;
+    // Declares a variable used by this part of the program.
+    float centerY;
+    // Declares a variable used by this part of the program.
+    float angle;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (direction == 0 || direction == 1)
+    {
+        // Assigns or updates a value used in the current calculation.
+        centerX = x + 5;
+        // Assigns or updates a value used in the current calculation.
+        centerY = y + 11;
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Assigns or updates a value used in the current calculation.
+        centerX = x + 11;
+        // Assigns or updates a value used in the current calculation.
+        centerY = y + 5;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (direction == 0)
+        // Assigns or updates a value used in the current calculation.
+        angle = 180;
+    // Checks another condition when the previous condition was false.
+    else if (direction == 1)
+        // Assigns or updates a value used in the current calculation.
+        angle = 0;
+    // Checks another condition when the previous condition was false.
+    else if (direction == 2)
+        // Assigns or updates a value used in the current calculation.
+        angle = -90;
+    // Runs this block when the previous conditions were false.
+    else
+        // Assigns or updates a value used in the current calculation.
+        angle = 90;
+
+    // Saves the current transformation matrix before moving and rotating the car.
+    glPushMatrix();
+
+    // Moves the local drawing origin to the center of the current car.
+    glTranslatef(centerX, centerY, 0);
+    // Rotates the car model so it faces its movement direction.
+    glRotatef(angle, 0, 0, 1);
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.025, 0.025, 0.03);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.8, -10.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.8, -10.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(5.4, -7.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(5.4, 7.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.2, 10.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.2, 10.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-5.4, 7.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-5.4, -7.0);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Calls rect() to draw or update this specific object.
+    rect(-5.8, 4.5, -4.7, 7.5, 0.02, 0.02, 0.025);
+    // Calls rect() to draw or update this specific object.
+    rect(4.7, 4.5, 5.8, 7.5, 0.02, 0.02, 0.025);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-5.8, -7.5, -4.7, -4.5, 0.02, 0.02, 0.025);
+    // Calls rect() to draw or update this specific object.
+    rect(4.7, -7.5, 5.8, -4.5, 0.02, 0.02, 0.025);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-5.75, 5.3, -4.75, 6.7, 0.28, 0.30, 0.32);
+    // Calls rect() to draw or update this specific object.
+    rect(4.75, 5.3, 5.75, 6.7, 0.28, 0.30, 0.32);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-5.75, -6.7, -4.75, -5.3, 0.28, 0.30, 0.32);
+    // Calls rect() to draw or update this specific object.
+    rect(4.75, -6.7, 5.75, -5.3, 0.28, 0.30, 0.32);
+
+    // Calls rect() to draw or update this specific object.
+    rect(-6.0, 2.5, -4.4, 4.3, 0.08, 0.10, 0.12);
+    // Calls rect() to draw or update this specific object.
+    rect(4.4, 2.5, 6.0, 4.3, 0.08, 0.10, 0.12);
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r, g, b);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.7, -10.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.7, -10.0);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.8, -7.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(5.0, 5.8);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.0, 9.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(2.8, 10.5);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-2.8, 10.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.0, 9.7);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-5.0, 5.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.8, -7.2);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r * 0.60, g * 0.60, b * 0.60);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.8, -7.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.8, -8.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.8, 8.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-4.8, 5.7);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(
+        r * 0.88 + 0.08,
+        g * 0.88 + 0.08,
+        b * 0.88 + 0.08
+    );
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.7, -8.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.7, -7.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(4.7, 5.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.7, 8.7);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r * 0.85, g * 0.85, b * 0.85);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, 6.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, 6.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.0, 9.4);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.0, 9.4);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.10, 0.25, 0.32);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, 2.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, 2.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.0, 6.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.0, 6.2);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.38, 0.62, 0.72);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-2.6, 4.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(2.2, 4.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(1.8, 5.7);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-2.2, 5.7);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r * 0.72, g * 0.72, b * 0.72);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, -2.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, -2.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, 1.8);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, 1.8);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -2.7, -1.8,
+         2.7,  1.2,
+        r * 0.90 + 0.05,
+        g * 0.90 + 0.05,
+        b * 0.90 + 0.05
+    );
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.08, 0.20, 0.26);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.4, -6.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.4, -6.0);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.0, -2.9);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.0, -2.9);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(r * 0.82, g * 0.82, b * 0.82);
+
+    // Begins drawing a filled polygon.
+    glBegin(GL_POLYGON);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, -9.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, -9.2);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, -6.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, -6.5);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -3.6, 9.7,
+         3.6, 10.5,
+        0.18, 0.20, 0.22
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -3.5, -10.2,
+         3.5, -9.5,
+        0.16, 0.18, 0.20
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -3.5, 8.8,
+        -1.8, 10.0,
+        1.0, 0.95, 0.60
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        1.8, 8.8,
+        3.5, 10.0,
+        1.0, 0.95, 0.60
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -3.6, -9.7,
+        -2.0, -8.4,
+        0.95, 0.04, 0.03
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        2.0, -9.7,
+        3.6, -8.4,
+        0.95, 0.04, 0.03
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -1.6, 9.8,
+         1.6, 10.35,
+        0.04, 0.05, 0.06
+    );
+
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -1.4, -10.15,
+         1.4, -9.55,
+        0.85, 0.85, 0.78
+    );
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.12, 0.12, 0.14);
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.0);
+
+    // Begins drawing independent line segments.
+    glBegin(GL_LINES);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, 6.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, 6.5);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.5, -6.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.5, -6.3);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(0, -2.3);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(0, 1.7);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.8, -2.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-3.8, 2.0);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.8, -2.5);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(3.8, 2.0);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.0);
+
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Sets the drawing color and alpha transparency.
+        glColor4f(0.68f, 0.88f, 1.0f, 0.38f);
+        // Changes the thickness of subsequently drawn lines.
+        glLineWidth(1.0f);
+
+        // Begins drawing independent line segments.
+        glBegin(GL_LINES);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-3.8f, 8.0f);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(2.5f, 5.5f);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-3.2f, 4.5f);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(3.0f, 2.0f);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-3.0f, -0.5f);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(3.0f, -3.0f);
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(-2.8f, -5.0f);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(2.5f, -7.0f);
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+
+        // Calls circle() to draw or update this specific object.
+        circle(-2.5f, 6.0f, 0.35f, 0.72f, 0.90f, 1.0f);
+        // Calls circle() to draw or update this specific object.
+        circle(2.8f, 1.0f, 0.30f, 0.72f, 0.90f, 1.0f);
+        // Calls circle() to draw or update this specific object.
+        circle(-1.8f, -4.0f, 0.28f, 0.72f, 0.90f, 1.0f);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            0.0f,
+            8.4f,
+            3.5f,
+            1.3f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.92f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            0.0f,
+            -0.4f,
+            3.2f,
+            1.1f,
+            0.97f,
+            0.99f,
+            1.0f,
+            0.88f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            0.0f,
+            -8.0f,
+            3.3f,
+            1.0f,
+            1.0f,
+            1.0f,
+            1.0f,
+            0.90f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            -3.8f,
+            4.0f,
+            1.3f,
+            0.8f,
+            0.96f,
+            0.98f,
+            1.0f,
+            0.82f
+        );
+
+        // Calls ellipse() to draw or update this specific object.
+        ellipse(
+            3.8f,
+            -3.5f,
+            1.3f,
+            0.8f,
+            0.96f,
+            0.98f,
+            1.0f,
+            0.82f
+        );
+    }
+
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.0f);
+
+    // Restores the previous transformation matrix so later objects are not affected.
+    glPopMatrix();
+}
+
+
+// ============================================================================
+// Function: moveNegativeCar()
+// Purpose : Moves a car in the negative coordinate direction and stops it at the signal line when required.
+// ============================================================================
+void moveNegativeCar(float &position,
+                     // Declares a variable used by this part of the program.
+                     float stopPosition,
+                     // Declares a variable used by this part of the program.
+                     bool greenSignal)
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (greenSignal || position < stopPosition)
+    {
+        position -= speedValue;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (position > stopPosition)
+    {
+        position -= speedValue;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (position < stopPosition)
+        {
+            // Assigns or updates a value used in the current calculation.
+            position = stopPosition;
+        }
+    }
+}
+
+
+// ============================================================================
+// Function: movePositiveCar()
+// Purpose : Moves a car in the positive coordinate direction and stops it at the signal line when required.
+// ============================================================================
+void movePositiveCar(float &position,
+                     // Declares a variable used by this part of the program.
+                     float stopPosition,
+                     // Declares a variable used by this part of the program.
+                     bool greenSignal)
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (greenSignal || position > stopPosition)
+    {
+        position += speedValue;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (position < stopPosition)
+    {
+        position += speedValue;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (position > stopPosition)
+        {
+            // Assigns or updates a value used in the current calculation.
+            position = stopPosition;
+        }
+    }
+}
+
+
+// ============================================================================
+// Function: vehicles()
+// Purpose : Updates all vehicle positions, resets cars after leaving the screen, and draws eight cars.
+// ============================================================================
+void vehicles()
+{
+    // Changes the current traffic-light phase.
+    bool verticalGreen = (signal == 0);
+    // Changes the current traffic-light phase.
+    bool horizontalGreen = (signal == 2);
+
+    const float stopNS = 52.0;
+    const float stopSN = -74.0;
+    const float stopEW = -74.0;
+    const float stopWE = 52.0;
+
+    // Calls moveNegativeCar() to draw or update this specific object.
+    moveNegativeCar(carNS1, stopNS, verticalGreen);
+    // Calls moveNegativeCar() to draw or update this specific object.
+    moveNegativeCar(carNS2, stopNS, verticalGreen);
+
+    // Calls movePositiveCar() to draw or update this specific object.
+    movePositiveCar(carSN1, stopSN, verticalGreen);
+    // Calls movePositiveCar() to draw or update this specific object.
+    movePositiveCar(carSN2, stopSN, verticalGreen);
+
+    // Calls movePositiveCar() to draw or update this specific object.
+    movePositiveCar(carEW1, stopEW, horizontalGreen);
+    // Calls movePositiveCar() to draw or update this specific object.
+    movePositiveCar(carEW2, stopEW, horizontalGreen);
+
+    // Calls moveNegativeCar() to draw or update this specific object.
+    moveNegativeCar(carWE1, stopWE, horizontalGreen);
+    // Calls moveNegativeCar() to draw or update this specific object.
+    moveNegativeCar(carWE2, stopWE, horizontalGreen);
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carNS1 < -123)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carNS1 = 130;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carNS2 < -123)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carNS2 = 155;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carSN1 > 103)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carSN1 = -130;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carSN2 > 103)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carSN2 = -155;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carEW1 > 103)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carEW1 = -130;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carEW2 > 103)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carEW2 = -155;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carWE1 < -123)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carWE1 = 130;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (carWE2 < -123)
+    {
+        // Assigns or updates a value used in the current calculation.
+        carWE2 = 155;
+    }
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        -20,
+        carNS1,
+        0.05, 0.30, 0.95,
+        0
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        -8,
+        carNS2,
+        0.90, 0.08, 0.08,
+        0
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        10,
+        carSN1,
+        0.05, 0.78, 0.25,
+        1
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        22,
+        carSN2,
+        0.95, 0.72, 0.05,
+        1
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        carEW1,
+        23,
+        0.95, 0.28, 0.04,
+        2
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        carEW2,
+        7,
+        0.05, 0.68, 0.90,
+        2
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        carWE1,
+        -9,
+        0.62, 0.15, 0.72,
+        3
+    );
+
+    // Calls carModel() to draw or update this specific object.
+    carModel(
+        carWE2,
+        -25,
+        0.95, 0.42, 0.04,
+        3
+    );
+}
+
+
+// ============================================================================
+// Function: controlPanel()
+// Purpose : Draws the key guide shown in the center of the junction.
+// ============================================================================
+void controlPanel()
+{
+    // Calls rect() to draw or update this specific object.
+    rect(
+        -19, -15,
+         19, 15,
+        0.06, 0.06, 0.07
+    );
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.55, 0.55, 0.55);
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.5);
+
+    // Begins drawing a closed outline whose final point connects back to the first.
+    glBegin(GL_LINE_LOOP);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-19, -15);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(19, -15);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(19, 15);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(-19, 15);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.0);
+
+    // Calls text() to draw or update this specific object.
+    text(
+        -8.5, 9,
+        "KEY GUIDE",
+        0.35, 0.75, 0.40
+    );
+
+    // Calls text() to draw or update this specific object.
+    text(
+        -7.5, 3,
+        "1  SUNNY",
+        0.65, 0.65, 0.65
+    );
+
+    // Calls text() to draw or update this specific object.
+    text(
+        -7.5, -3,
+        "2  RAIN",
+        0.65, 0.65, 0.65
+    );
+
+    // Calls text() to draw or update this specific object.
+    text(
+        -7.5, -9,
+        "3  SNOW",
+        0.65, 0.65, 0.65
+    );
+}
+
+
+// ============================================================================
+// Function: centerRoadDesign()
+// Purpose : Draws the outlined cross-hatched safety box in the middle of the junction.
+// ============================================================================
+void centerRoadDesign()
+{
+    // Declares a variable used by this part of the program.
+    float left = -30;
+    // Declares a variable used by this part of the program.
+    float right = 30;
+    // Declares a variable used by this part of the program.
+    float bottom = -30;
+    // Declares a variable used by this part of the program.
+    float top = 30;
+
+    // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+    glColor3f(0.55, 0.55, 0.55);
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(2.0);
+
+    // Begins drawing a closed outline whose final point connects back to the first.
+    glBegin(GL_LINE_LOOP);
+
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(left, bottom);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(right, bottom);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(right, top);
+    // Adds a 2D vertex to the shape currently being drawn.
+    glVertex2f(left, top);
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Begins drawing independent line segments.
+    glBegin(GL_LINES);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (float c = -45; c <= 45; c += 20)
+    {
+        // Declares a variable used by this part of the program.
+        float x1;
+        // Declares a variable used by this part of the program.
+        float y1;
+        // Declares a variable used by this part of the program.
+        float x2;
+        // Declares a variable used by this part of the program.
+        float y2;
+
+        // Assigns or updates a value used in the current calculation.
+        x1 = left;
+        // Assigns or updates a value used in the current calculation.
+        y1 = c - x1;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (y1 < bottom)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y1 = bottom;
+            // Assigns or updates a value used in the current calculation.
+            x1 = c - y1;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (y1 > top)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y1 = top;
+            // Assigns or updates a value used in the current calculation.
+            x1 = c - y1;
+        }
+
+        // Assigns or updates a value used in the current calculation.
+        x2 = right;
+        // Assigns or updates a value used in the current calculation.
+        y2 = c - x2;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (y2 < bottom)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y2 = bottom;
+            // Assigns or updates a value used in the current calculation.
+            x2 = c - y2;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (y2 > top)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y2 = top;
+            // Assigns or updates a value used in the current calculation.
+            x2 = c - y2;
+        }
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x1, y1);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x2, y2);
+
+        // Assigns or updates a value used in the current calculation.
+        x1 = left;
+        // Assigns or updates a value used in the current calculation.
+        y1 = x1 - c;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (y1 < bottom)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y1 = bottom;
+            // Assigns or updates a value used in the current calculation.
+            x1 = y1 + c;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (y1 > top)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y1 = top;
+            // Assigns or updates a value used in the current calculation.
+            x1 = y1 + c;
+        }
+
+        // Assigns or updates a value used in the current calculation.
+        x2 = right;
+        // Assigns or updates a value used in the current calculation.
+        y2 = x2 - c;
+
+        // Checks this condition and executes the following block only when it is true.
+        if (y2 < bottom)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y2 = bottom;
+            // Assigns or updates a value used in the current calculation.
+            x2 = y2 + c;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (y2 > top)
+        {
+            // Assigns or updates a value used in the current calculation.
+            y2 = top;
+            // Assigns or updates a value used in the current calculation.
+            x2 = y2 + c;
+        }
+
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x1, y1);
+        // Adds a 2D vertex to the shape currently being drawn.
+        glVertex2f(x2, y2);
+    }
+
+    // Finishes the current OpenGL drawing block.
+    glEnd();
+
+    // Changes the thickness of subsequently drawn lines.
+    glLineWidth(1.0);
+}
+
+
+// ============================================================================
+// Function: weatherEffect()
+// Purpose : Animates falling rain or snow across the entire scene.
+// ============================================================================
+void weatherEffect()
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 2)
+    {
+        // Sets the current drawing color using red, green, and blue values from 0.0 to 1.0.
+        glColor3f(0.5, 0.7, 1.0);
+
+        // Begins drawing independent line segments.
+        glBegin(GL_LINES);
+
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 150; i++)
+        {
+            // Adds a 2D vertex to the shape currently being drawn.
+            glVertex2f(
+                rainX[i],
+                rainY[i]
+            );
+
+            // Adds a 2D vertex to the shape currently being drawn.
+            glVertex2f(
+                rainX[i] - 2,
+                rainY[i] - 8
+            );
+
+            rainY[i] -= 1.0;
+
+            // Checks this condition and executes the following block only when it is true.
+            if (rainY[i] < -100)
+            {
+                rainY[i] = 100;
+                // Generates a random coordinate within the visible -100 to 99 range.
+                rainX[i] = -100 + rand() % 200;
+            }
+        }
+
+        // Finishes the current OpenGL drawing block.
+        glEnd();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 3)
+    {
+        // Starts a loop that repeats the following block for a fixed range of values.
+        for (int i = 0; i < 150; i++)
+        {
+            // Calls circle() to draw or update this specific object.
+            circle(
+                snowX[i],
+                snowY[i],
+                1.5,
+                1.0,
+                1.0,
+                1.0
+            );
+
+            snowY[i] -= 0.3;
+
+            // Checks this condition and executes the following block only when it is true.
+            if (snowY[i] < -100)
+            {
+                snowY[i] = 100;
+                // Generates a random coordinate within the visible -100 to 99 range.
+                snowX[i] = -100 + rand() % 200;
+            }
+        }
+    }
+}
+
+
+// ============================================================================
+// Function: display()
+// Purpose : Main rendering function. It clears the screen and draws every scene component in the correct order.
+// ============================================================================
+void display()
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 1)
+    {
+        // Sets the background color used when the frame is cleared.
+        glClearColor(0.1, 0.55, 0.9, 1);
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 2)
+    {
+        // Sets the background color used when the frame is cleared.
+        glClearColor(0.07, 0.10, 0.16, 1);
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Sets the background color used when the frame is cleared.
+        glClearColor(0.68, 0.76, 0.84, 1);
+    }
+
+    // Clears the previous frame before drawing the updated scene.
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    sidewalk();
+    road();
+    surfaceWeather();
+    centerRoadDesign();
+    controlPanel();
+    environment();
+    boards();
+    vehicles();
+    trafficSystem();
+    weatherEffect();
+
+    // Forces all queued OpenGL drawing commands to execute.
+    glFlush();
+}
+
+
+// ============================================================================
+// Function: animation()
+// Purpose : Requests continuous screen redraws approximately every 30 milliseconds.
+// ============================================================================
+void animation(int)
+{
+    // Marks the window for redrawing during the next GLUT event cycle.
+    glutPostRedisplay();
+
+    // Registers a timer callback that GLUT will call after the specified delay.
+    glutTimerFunc(
+        30,
+        animation,
+        0
+    );
+}
+
+
+// ============================================================================
+// Function: signalTimer()
+// Purpose : Updates the countdown and changes the traffic-light phase when the timer reaches zero.
+// ============================================================================
+void signalTimer(int)
+{
+    // Decreases the countdown by one second.
+    timerValue--;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (timerValue <= 0)
+    {
+        // Checks this condition and executes the following block only when it is true.
+        if (signal == 0)
+        {
+            // Changes the current traffic-light phase.
+            signal = 1;
+            // Assigns or updates a value used in the current calculation.
+            timerValue = yellowTime;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (signal == 1)
+        {
+            // Changes the current traffic-light phase.
+            signal = 2;
+            // Assigns or updates a value used in the current calculation.
+            timerValue = 40;
+        }
+        // Checks another condition when the previous condition was false.
+        else if (signal == 2)
+        {
+            // Changes the current traffic-light phase.
+            signal = 3;
+            // Assigns or updates a value used in the current calculation.
+            timerValue = yellowTime;
+        }
+        // Runs this block when the previous conditions were false.
+        else
+        {
+            // Changes the current traffic-light phase.
+            signal = 0;
+            // Assigns or updates a value used in the current calculation.
+            timerValue = 35;
+        }
+    }
+
+    // Registers a timer callback that GLUT will call after the specified delay.
+    glutTimerFunc(
+        1000,
+        signalTimer,
+        0
+    );
+}
+
+
+// ============================================================================
+// Function: updateCarSpeed()
+// Purpose : Selects vehicle speed from the current weather mode and applies the optional double-speed setting.
+// ============================================================================
+void updateCarSpeed()
+{
+    // Declares a variable used by this part of the program.
+    float normalSpeed;
+
+    // Checks this condition and executes the following block only when it is true.
+    if (mode == 1)
+    {
+        // Assigns or updates a value used in the current calculation.
+        normalSpeed = 0.35;
+    }
+    // Checks another condition when the previous condition was false.
+    else if (mode == 2)
+    {
+        // Assigns or updates a value used in the current calculation.
+        normalSpeed = 0.22;
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Assigns or updates a value used in the current calculation.
+        normalSpeed = 0.10;
+    }
+
+    // Checks this condition and executes the following block only when it is true.
+    if (doubleSpeed)
+    {
+        // Stores the speed that will be used by all moving cars.
+        speedValue = normalSpeed * 2.0;
+    }
+    // Runs this block when the previous conditions were false.
+    else
+    {
+        // Stores the speed that will be used by all moving cars.
+        speedValue = normalSpeed;
+    }
+}
+
+
+// ============================================================================
+// Function: keyboard()
+// Purpose : Handles keyboard input for weather selection, double speed, and program exit.
+// ============================================================================
+void keyboard(unsigned char key, int x, int y)
+{
+    // Checks this condition and executes the following block only when it is true.
+    if (key == '1')
+    {
+        // Changes the active weather mode.
+        mode = 1;
+        updateCarSpeed();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (key == '2')
+    {
+        // Changes the active weather mode.
+        mode = 2;
+        updateCarSpeed();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (key == '3')
+    {
+        // Changes the active weather mode.
+        mode = 3;
+        updateCarSpeed();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (key == ' ')
+    {
+        // Toggles double speed: true becomes false, and false becomes true.
+        doubleSpeed = !doubleSpeed;
+        updateCarSpeed();
+    }
+    // Checks another condition when the previous condition was false.
+    else if (key == 27)
+    {
+        // Closes the program normally when Escape is pressed.
+        exit(0);
+    }
+
+    // Marks the window for redrawing during the next GLUT event cycle.
+    glutPostRedisplay();
+}
+
+
+// ============================================================================
+// Function: init()
+// Purpose : Initializes blending, the 2D coordinate system, and random rain/snow particle positions.
+// ============================================================================
+void init()
+{
+    // Enables alpha blending so transparent rain, snow, and reflection effects can be displayed.
+    glEnable(GL_BLEND);
+
+    // Defines how transparent source colors are combined with colors already on the screen.
+    glBlendFunc(
+        GL_SRC_ALPHA,
+        GL_ONE_MINUS_SRC_ALPHA
+    );
+
+    // Selects the projection matrix for setting the 2D viewing area.
+    glMatrixMode(GL_PROJECTION);
+    // Resets the selected matrix to its default identity state.
+    glLoadIdentity();
+
+    // Creates a 2D coordinate system ranging from -100 to 100 on both axes.
+    gluOrtho2D(-100, 100, -100, 100);
+
+    // Starts a loop that repeats the following block for a fixed range of values.
+    for (int i = 0; i < 150; i++)
+    {
+        // Generates a random coordinate within the visible -100 to 99 range.
+        rainX[i] = -100 + rand() % 200;
+        // Generates a random coordinate within the visible -100 to 99 range.
+        rainY[i] = -100 + rand() % 200;
+
+        // Generates a random coordinate within the visible -100 to 99 range.
+        snowX[i] = -100 + rand() % 200;
+        // Generates a random coordinate within the visible -100 to 99 range.
+        snowY[i] = -100 + rand() % 200;
+    }
+}
+
+
+// ============================================================================
+// Function: main()
+// Purpose : Program entry point. It creates the GLUT window, registers callbacks, starts timers, and enters the event loop.
+// ============================================================================
+// Declares a variable used by this part of the program.
+int main(int argc, char **argv)
+{
+    // Initializes the GLUT library using the program's command-line arguments.
+    glutInit(&argc, argv);
+
+    // Uses a single-buffered RGB window.
+    glutInitDisplayMode(
+        GLUT_SINGLE | GLUT_RGB
+    );
+
+    // Sets the initial width and height of the program window.
+    glutInitWindowSize(
+        1100,
+        800
+    );
+
+    // Creates the OpenGL window and assigns its title.
+    glutCreateWindow(
+        "Traffic Control System"
+    );
+
+    init();
+
+    // Registers display() as the function responsible for drawing each frame.
+    glutDisplayFunc(display);
+    // Registers keyboard() as the keyboard-input callback.
+    glutKeyboardFunc(keyboard);
+
+    // Registers a timer callback that GLUT will call after the specified delay.
+    glutTimerFunc(
+        30,
+        animation,
+        0
+    );
+
+    // Registers a timer callback that GLUT will call after the specified delay.
+    glutTimerFunc(
+        1000,
+        signalTimer,
+        0
+    );
+
+    // Starts GLUT's event loop. Control normally remains here until the program exits.
+    glutMainLoop();
+
+    // Ends main() and reports successful program termination.
+    return 0;
+}
